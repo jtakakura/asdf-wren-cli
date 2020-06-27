@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-# TODO: Ensure this is the correct GitHub homepage where releases can be downloaded for wren-cli.
 GH_REPO="https://github.com/wren-lang/wren-cli"
 
 fail() {
@@ -12,7 +11,6 @@ fail() {
 
 curl_opts=(-fsSL)
 
-# NOTE: You might want to remove this if wren-cli is not hosted on GitHub releases.
 if [ -n "${GITHUB_API_TOKEN:-}" ]; then
   curl_opts=("${curl_opts[@]}" -H "Authorization: token $GITHUB_API_TOKEN")
 fi
@@ -25,22 +23,20 @@ sort_versions() {
 list_github_tags() {
   git ls-remote --tags --refs "$GH_REPO" |
     grep -o 'refs/tags/.*' | cut -d/ -f3- |
-    sed 's/^v//' # NOTE: You might want to adapt this sed to remove non-version strings from tags
+    sed 's/^v//'
 }
 
 list_all_versions() {
-  # TODO: Adapt this. By default we simply list the tag names from GitHub releases.
-  # Change this function if wren-cli has other means of determining installable versions.
   list_github_tags
 }
 
 download_release() {
-  local version filename url
-  version="$1"
-  filename="$2"
+  local version platform filename url
+  platform="$1"
+  version="$2"
+  filename="$3"
 
-  # TODO: Adapt the release URL convention for wren-cli
-  url="$GH_REPO/archive/v${version}.tar.gz"
+  url="$GH_REPO/releases/download/${version}/wren_cli-${platform}-${version}.zip"
 
   echo "* Downloading wren-cli release $version..."
   curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
@@ -55,18 +51,22 @@ install_version() {
     fail "asdf-wren-cli supports release installs only"
   fi
 
-  # TODO: Adapt this to proper extension and adapt extracting strategy.
-  local release_file="$install_path/wren-cli-$version.tar.gz"
+  local platform
+
+  case "$OSTYPE" in
+    darwin*) platform="mac" ;;
+    linux*) platform="linux" ;;
+    *) fail "Unsupported platform" ;;
+  esac
+
+  local release_file="$install_path/wren-cli-$platform-$version.zip"
   (
-    mkdir -p "$install_path"
-    download_release "$version" "$release_file"
-    tar -xzf "$release_file" -C "$install_path" --strip-components=1 || fail "Could not extract $release_file"
+    mkdir -p "$install_path/bin"
+    download_release "$platform" "$version" "$release_file"
+    unzip -j "$release_file" -d "$install_path/bin" || fail "Could not extract $release_file"
     rm "$release_file"
 
-    # TODO: Asert wren-cli executable exists.
-    local tool_cmd
-    tool_cmd="$(echo "wren_cli --help" | cut -d' ' -f2-)"
-    test -x "$install_path/bin/$tool_cmd" || fail "Expected $install_path/bin/$tool_cmd to be executable."
+    test -x "$install_path/bin/wren_cli" || fail "Expected $install_path/bin/wren_cli to be executable."
 
     echo "wren-cli $version installation was successful!"
   ) || (

@@ -36,7 +36,7 @@ download_release() {
   version="$2"
   filename="$3"
 
-  url="$GH_REPO/releases/download/${version}/wren_cli-${platform}-${version}.zip"
+  url=$(curl -s https://api.github.com/repos/wren-lang/wren-cli/releases | grep "browser_download_url.*" | grep "${version}" | grep "${platform}" | cut -d : -f 2,3 | tr -d \" | xargs echo -n)
 
   echo "* Downloading wren-cli release $version..."
   curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
